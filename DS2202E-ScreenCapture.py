@@ -56,7 +56,7 @@ log_running_python_versions()
 # Update the next lines for your own default settings:
 path_to_save = "captures/"
 DEFAULT_FORMAT = "png"
-DEFAULT_IP = "192.168.254.189"
+DEFAULT_IP = "192.168.254.45"
 
 # Rigol/LXI specific constants
 port = 5555
