@@ -75,10 +75,10 @@ def print_help():
     print
     print "Usage examples:"
     print "    " + "python " + script_name + " png"
-    print "    " + "python " + script_name + " csv 192.168.1.3"
+    print "    " + "python " + script_name + " csv 192.168.254.45"
     print
     print "The following usage cases are not yet implemented:"
-    print "    " + "python " + script_name + " bmp 192.168.1.3 my_place_for_captures"
+    print "    " + "python " + script_name + " bmp 192.168.254.45 my_place_for_captures"
     print
     print "This program captures the whole screen"
     print "    of a Rigol DS2202E series oscilloscope, then save it on the computer"
