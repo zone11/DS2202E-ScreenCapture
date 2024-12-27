@@ -1,47 +1,20 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from telnetlib_receive_all import Telnet
 from Rigol_functions import *
 import time
 from PIL import Image
-import StringIO
+import io
 import sys
 import os
 import platform
 import logging
 
-__version__ = 'v1.2.0'
-# Mod for DS2202E
+__version__ = 'v1.3.0'
+# 1.2.0 Mod for DS2202E by zone11
+# 1.3.0 Python3 compatibility by doug-a-brunner and zone11
 
-__author__ = 'RoGeorge, zone11'
-#
-# TODO: Write all SCPI commands in their short name, with capitals
-# TODO: Add ignore instrument model switch instead of asking
-#
-# TODO: Detect if the scope is in RUN or in STOP mode (looking at the length of data extracted)
-# TODO: Add logic for 1200/mdep points to avoid displaying the 'Invalid Input!' message
-# TODO: Add message for csv data points: mdep (all) or 1200 (screen), depending on RUN/STOP state, MATH and WAV:MODE
-# TODO: Add STOP scope switch
-#
-# TODO: Add debug switch
-# TODO: Clarify info, warning, error, debug and print messages
-#
-# TODO: Add automated version increase
-#
-# TODO: Extract all memory datapoints. For the moment, CSV is limited to the displayed 1200 datapoints.
-# TODO: Use arrays instead of strings and lists for csv mode.
-#
-# TODO: variables/functions name refactoring
-# TODO: Fine tune maximum chunk size request
-# TODO: Investigate scaling. Sometimes 3.0e-008 instead of expected 3.0e-000
-# TODO: Add timestamp and mark the trigger point as t0
-# TODO: Use channels label instead of chan1, chan2, chan3, chan4, math
-# TODO: Add command line parameters file path
-# TODO: Speed-up the transfer, try to replace Telnet with direct TCP
-# TODO: Add GUI
-# TODO: Add browse and custom filename selection
-# TODO: Create executable distributions
-#
+__author__ = 'RoGeorge, zone11, doug-a-brunner'
 
 # Set the desired logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 logging.basicConfig(level=logging.INFO,
@@ -69,27 +42,27 @@ model = 1
 serial = 2
 
 def print_help():
-    print
-    print "Usage:"
-    print "    " + "python " + script_name + " png|bmp|csv [oscilloscope_IP [save_path]]"
-    print
-    print "Usage examples:"
-    print "    " + "python " + script_name + " png"
-    print "    " + "python " + script_name + " csv 192.168.254.45"
-    print
-    print "The following usage cases are not yet implemented:"
-    print "    " + "python " + script_name + " bmp 192.168.254.45 my_place_for_captures"
-    print
-    print "This program captures the whole screen"
-    print "    of a Rigol DS2202E series oscilloscope, then save it on the computer"
-    print "    as a CSV, PNG or BMP file with a timestamp in the file name."
-    print
-    print "    The program is using LXI protocol, so the computer"
-    print "    must have LAN connection with the oscilloscope."
-    print "    USB and/or GPIB connections are not used by this software."
-    print
-    print "    No VISA, IVI or Rigol drivers are needed."
-    print
+    print()
+    print("Usage:")
+    print("    " + "python " + script_name + " png|bmp|csv [oscilloscope_IP [save_path]]")
+    print()
+    print("Usage examples:")
+    print("    " + "python " + script_name + " png")
+    print("    " + "python " + script_name + " csv 192.168.1.3")
+    print()
+    print("The following usage cases are not yet implemented:")
+    print("    " + "python " + script_name + " bmp 192.168.1.3 my_place_for_captures")
+    print()
+    print("This program captures either the waveform or the whole screen")
+    print("    of a Rigol DS2202E series oscilloscope, then save it on the computer")
+    print("    as a CSV, PNG or BMP file with a timestamp in the file name.")
+    print()
+    print("    The program is using LXI protocol, so the computer")
+    print("    must have LAN connection with the oscilloscope.")
+    print("    USB and/or GPIB connections are not used by this software.")
+    print()
+    print("    No VISA, IVI or Rigol drivers are needed.")
+    print()
 
 # Check command line parameters
 script_name = os.path.basename(sys.argv[0])
@@ -99,7 +72,7 @@ if len(sys.argv) <= 1:
     print("Warning - No command line parameters, using defaults")
 elif sys.argv[1].lower() not in ["png", "bmp", "csv"]:
     print_help()
-    print "This file type is not supported: ", sys.argv[1]
+    print("This file type is not supported: ", sys.argv[1])
     sys.exit("ERROR")
 
 # Fileformat
@@ -122,9 +95,9 @@ else:
 
 if response != 0:
     print
-    print "WARNING! No response pinging " + IP_RIGOL
-    print "Check network cables and settings."
-    print "You should be able to ping the oscilloscope."
+    print( "WARNING! No response pinging " + IP_RIGOL)
+    print("Check network cables and settings.")
+    print("You should be able to ping the oscilloscope.")
 
 # Open a modified telnet session
 # The default telnetlib drops 0x00 characters,
@@ -134,21 +107,20 @@ instrument_id = command(tn, "*IDN?")    # ask for instrument ID
 
 # Check if instrument is set to accept LAN commands
 if instrument_id == "command error":
-    print "Instrument reply:", instrument_id
-    print "Check the oscilloscope settings."
-    print "Utility -> IO Setting -> RemoteIO -> LAN must be ON"
+    print("Instrument reply:", instrument_id)
+    print("Check the oscilloscope settings.")
+    print("Utility -> IO Setting -> RemoteIO -> LAN must be ON")
     sys.exit("ERROR")
 
 # Check if instrument is indeed a Rigol DS2202E series
 id_fields = instrument_id.split(",")
 
 if (id_fields[company] != "RIGOL TECHNOLOGIES") or (id_fields[model] !="DS2202E"):
-   print "Found instrument model", "'" + id_fields[model] + "'", "from", "'" + id_fields[company] + "'"
-   print "WARNING: No Rigol DS2202E found at", IP_RIGOL
+   print("Found instrument model", "'" + id_fields[model] + "'", "from", "'" + id_fields[company] + "'")
+   print("WARNING: No Rigol DS2202E found at", IP_RIGOL)
    sys.exit('Sorry and good bye!')       
 
-print "Instrument ID:",
-print instrument_id
+print("Instrument ID:", instrument_id)
 
 # Prepare filename as C:\MODEL_SERIAL_YYYY-MM-DD_HH.MM.SS
 timestamp = time.strftime("%Y-%m-%d_%H.%M.%S", time.localtime())
@@ -156,15 +128,15 @@ filename = path_to_save + id_fields[model] + "_" + id_fields[serial] + "_" + tim
 
 if file_format in ["png", "bmp"]:
     # Ask for an oscilloscope display print screen
-    print "Receiving screen capture..."
-    buff = command(tn, ":DISP:DATA?")
+    print("Receiving screen capture...")
+    buff = command_bin(tn, ":DISP:DATA?")
 
     expectedBuffLen = expected_buff_bytes(buff)
     # Just in case the transfer did not complete in the expected time, read the remaining 'buff' chunks
     while len(buff) < expectedBuffLen:
         logging.warning("Received LESS data then expected! (" +
                         str(len(buff)) + " out of " + str(expectedBuffLen) + " expected 'buff' bytes.)")
-        tmp = tn.read_until("\n", smallWait)
+        tmp = tn.read_until(b"\n", smallWait)
         if len(tmp) == 0:
             break
         buff += tmp
@@ -181,16 +153,16 @@ if file_format in ["png", "bmp"]:
     buff = buff[tmcHeaderLen: tmcHeaderLen+expectedDataLen]
 
     # Save as PNG or BMP according to file_format
-    im = Image.open(StringIO.StringIO(buff))
+    im = Image.open(io.BytesIO(buff))
     im.save(filename + "." + file_format, file_format)
-    print "Saved file:", "'" + filename + "." + file_format + "'"
+    print("Saved file:", "'" + filename + "." + file_format + "'")
 
 # TODO: Change WAV:FORM from ASC to BYTE
 elif file_format == "csv":
     # Put the scope in STOP mode - for the moment, deal with it by manually stopping the scope
     # TODO: Add command line switch and code logic for 1200 vs ALL memory data points
     # tn.write("stop")
-    # response = tn.read_until("\n", 1)
+    # response = tn.read_until(b"\n", 1)
 
     # Scan for displayed channels
     chanList = []
@@ -214,7 +186,7 @@ elif file_format == "csv":
 
     # for each active channel
     for channel in chanList:
-        print
+        print()
 
         # Set WAVE parameters
         command(tn, ":WAV:SOUR " + channel)
@@ -226,7 +198,7 @@ elif file_format == "csv":
             command(tn, ":WAV:STOP 1200")
 
         buff = ""
-        print "Data from channel '" + str(channel) + "', points " + str(1) + "-" + str(1200) + ": Receiving..."
+        print("Data from channel '" + str(channel) + "', points " + str(1) + "-" + str(1200) + ": Receiving...")
         buffChunk = command(tn, ":WAV:DATA?")
 
         # Just in case the transfer did not complete in the expected time
@@ -234,7 +206,7 @@ elif file_format == "csv":
             logging.warning("The data transfer did not complete in the expected time of " +
                             str(smallWait) + " second(s).")
 
-            tmp = tn.read_until("\n", smallWait)
+            tmp = tn.read_until(b"\n", smallWait)
             if len(tmp) == 0:
                 break
             buffChunk += tmp
@@ -278,6 +250,6 @@ elif file_format == "csv":
     scr_file.write(csv_buff)
     scr_file.close()
 
-    print "Saved file:", "'" + filename + "." + file_format + "'"
+    print("Saved file:", "'" + filename + "." + file_format + "'")
 
 tn.close()

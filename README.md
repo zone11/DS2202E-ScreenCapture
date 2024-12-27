@@ -7,8 +7,6 @@ To achieve this, SCPI (Standard Commands for Programmable Instruments) are sent 
 The computer and the oscilloscope are connected together by a LAN (Local Area Network).
 No USB (Universal Serial Bus), no VISA (Virtual Instrument Software Architecture), no IVI (Interchangeable Virtual Instrument) and no Rigol drivers are required.
 
-Python 2 with PIP < 10.0 is required. ```python -m pip install pip==9.0.3```
-
-***Python 3 is not supported at the moment***
 
 Based on work of RoGeorge - https://github.com/RoGeorge/DS1054Z_screen_capture
+Additional work by doug-a-brunner for Python3 support - https://github.com/doug-a-brunner
