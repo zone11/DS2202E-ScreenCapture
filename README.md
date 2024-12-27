@@ -7,6 +7,10 @@ To achieve this, SCPI (Standard Commands for Programmable Instruments) are sent 
 The computer and the oscilloscope are connected together by a LAN (Local Area Network).
 No USB (Universal Serial Bus), no VISA (Virtual Instrument Software Architecture), no IVI (Interchangeable Virtual Instrument) and no Rigol drivers are required.
 
+## Example
+```python3 DS2202E-ScreenCapture.py png 192.168.44.174```
 
-Based on work of RoGeorge - https://github.com/RoGeorge/DS1054Z_screen_capture
+![DS2202E_DS2D193301291_2024-12-27_19 01 48](https://github.com/user-attachments/assets/2555dc3e-3d3d-4ff0-a676-22f28e935562)
+
+Based on work of RoGeorge - https://github.com/RoGeorge/DS1054Z_screen_capture \
 Additional work by doug-a-brunner for Python3 support - https://github.com/doug-a-brunner
