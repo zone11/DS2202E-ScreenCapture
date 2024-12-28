@@ -29,18 +29,17 @@ logging.info("Python version: " + str(sys.version) + ", " + str(sys.version_info
 # Update the next lines for your own default settings:
 path_to_save = "captures/"
 DEFAULT_FORMAT = "png"
-DEFAULT_IP = "192.168.254.45"
+DEFAULT_IP = "192.168.44.174"
 
 # Rigol/LXI specific constants
 port = 5555
-
 big_wait = 10
 smallWait = 1
-
 company = 0
 model = 1
 serial = 2
 
+# Send operational command to the device
 def command(tn, scpi):
     logging.info("SCPI to be sent: " + scpi)
     answer_wait_s = 1
@@ -57,7 +56,7 @@ def command(tn, scpi):
     logging.info("Received response: " + response)
     return response
 
-
+# Send bit command to the device
 def command_bin(tn, scpi):
     logging.info("SCPI to be sent: " + scpi)
     answer_wait_s = 1
@@ -74,7 +73,7 @@ def command_bin(tn, scpi):
     logging.info("Received response: " + repr(response))
     return response
 
-
+# decode header bytes
 def tmc_header_bytes(buff):
     return 2 + int(buff[1:2].decode())
 
@@ -86,28 +85,21 @@ def expected_data_bytes(buff):
 def expected_buff_bytes(buff):
     return tmc_header_bytes(buff) + expected_data_bytes(buff) + 1
     
-    
+# print script usage    
 def print_help():
     print()
     print("Usage:")
-    print("    " + "python " + script_name + " png|bmp [oscilloscope_IP [save_path]]")
+    print("    " + "python3 " + script_name + " png|bmp [oscilloscope_IP [save_path]]")
     print()
     print("Usage examples:")
-    print("    " + "python " + script_name + " png")
-    print("    " + "python " + script_name + " png 192.168.1.3")
+    print("    " + "python3 " + script_name + " png")
+    print("    " + "python3 " + script_name + " png 192.168.1.3")
     print()
-    print("The following usage cases are not yet implemented:")
-    print("    " + "python " + script_name + " bmp 192.168.1.3 my_place_for_captures")
+    print("This program captures captures whatever is displayed on the screen of a Rigol DS2202E series oscilloscope as an image")
+    print("The program is using LXI protocol, so the computer must have LAN connection with the oscilloscope.")
+    print("USB and/or GPIB connections are not used by this software.")
     print()
-    print("This program captures either the waveform or the whole screen")
-    print("    of a Rigol DS2202E series oscilloscope, then save it on the computer")
-    print("    as a PNG or BMP file with a timestamp in the file name.")
-    print()
-    print("    The program is using LXI protocol, so the computer")
-    print("    must have LAN connection with the oscilloscope.")
-    print("    USB and/or GPIB connections are not used by this software.")
-    print()
-    print("    No VISA, IVI or Rigol drivers are needed.")
+    print("No VISA, IVI or Rigol drivers are needed.")
     print()
 
 # Check command line parameters
@@ -141,13 +133,13 @@ else:
 
 if response != 0:
     print
-    print( "WARNING! No response pinging " + IP_RIGOL)
+    print("WARNING! No response pinging " + IP_RIGOL)
     print("Check network cables and settings.")
     print("You should be able to ping the oscilloscope.")
 
 # Open a modified telnet session
-# The default telnetlib drops 0x00 characters,
-#   so a modified library 'telnetlib_receive_all' is used instead
+# The default telnetlib drops 0x00 characters, so a modified library 'telnetlib_receive_all' is used instead
+# Switching to TCP Socket one day..
 tn = Telnet(IP_RIGOL, port)
 instrument_id = command(tn, "*IDN?")    # ask for instrument ID
 
