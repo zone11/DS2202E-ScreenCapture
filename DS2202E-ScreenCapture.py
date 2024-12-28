@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from telnetlib_receive_all import Telnet
-from Rigol_functions import *
 import time
 from PIL import Image
 import io
@@ -10,11 +9,11 @@ import os
 import platform
 import logging
 
-__version__ = 'v1.3.0'
-# 1.2.0 Mod for DS2202E by zone11
-# 1.3.0 Python3 compatibility by doug-a-brunner and zone11
+__version__ = 'v0.2'
+# 0.1 Mod for DS2202E by zone11
+# 0.2 Python3 compatibility by doug-a-brunner and cleanup/removals by zone11
 
-__author__ = 'RoGeorge, zone11, doug-a-brunner'
+__author__ = 'zone11, doug-a-brunner, RoGeorge'
 
 # Set the desired logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 logging.basicConfig(level=logging.INFO,
@@ -24,7 +23,8 @@ logging.basicConfig(level=logging.INFO,
 
 logging.info("***** New run started...")
 logging.info("OS Platform: " + str(platform.uname()))
-log_running_python_versions()
+logging.info("Python version: " + str(sys.version) + ", " + str(sys.version_info))
+
 
 # Update the next lines for your own default settings:
 path_to_save = "captures/"
@@ -41,21 +41,67 @@ company = 0
 model = 1
 serial = 2
 
+def command(tn, scpi):
+    logging.info("SCPI to be sent: " + scpi)
+    answer_wait_s = 1
+    response = ""
+    while response != "1\n":
+        tn.write(b"*OPC?\n")  # previous operation(s) has completed ?
+        logging.info("Send SCPI: *OPC? # May I send a command? 1==yes")
+        response = tn.read_until(b"\n", 1).decode()  # wait max 1s for an answer
+        logging.info("Received response: " + response)
+
+    tn.write(scpi.encode() + b"\n")
+    logging.info("Sent SCPI: " + scpi)
+    response = tn.read_until(b"\n", answer_wait_s).decode()
+    logging.info("Received response: " + response)
+    return response
+
+
+def command_bin(tn, scpi):
+    logging.info("SCPI to be sent: " + scpi)
+    answer_wait_s = 1
+    response = b""
+    while response != b"1\n":
+        tn.write(b"*OPC?\n")  # previous operation(s) has completed ?
+        logging.info("Send SCPI: *OPC? # May I send a command? 1==yes")
+        response = tn.read_until(b"\n", 1)  # wait max 1s for an answer
+        logging.info("Received response: " + repr(response))
+
+    tn.write(scpi.encode() + b"\n")
+    logging.info("Sent SCPI: " + scpi)
+    response = tn.read_until(b"\n", answer_wait_s)
+    logging.info("Received response: " + repr(response))
+    return response
+
+
+def tmc_header_bytes(buff):
+    return 2 + int(buff[1:2].decode())
+
+
+def expected_data_bytes(buff):
+    return int(buff[2:tmc_header_bytes(buff)].decode())
+
+
+def expected_buff_bytes(buff):
+    return tmc_header_bytes(buff) + expected_data_bytes(buff) + 1
+    
+    
 def print_help():
     print()
     print("Usage:")
-    print("    " + "python " + script_name + " png|bmp|csv [oscilloscope_IP [save_path]]")
+    print("    " + "python " + script_name + " png|bmp [oscilloscope_IP [save_path]]")
     print()
     print("Usage examples:")
     print("    " + "python " + script_name + " png")
-    print("    " + "python " + script_name + " csv 192.168.1.3")
+    print("    " + "python " + script_name + " png 192.168.1.3")
     print()
     print("The following usage cases are not yet implemented:")
     print("    " + "python " + script_name + " bmp 192.168.1.3 my_place_for_captures")
     print()
     print("This program captures either the waveform or the whole screen")
     print("    of a Rigol DS2202E series oscilloscope, then save it on the computer")
-    print("    as a CSV, PNG or BMP file with a timestamp in the file name.")
+    print("    as a PNG or BMP file with a timestamp in the file name.")
     print()
     print("    The program is using LXI protocol, so the computer")
     print("    must have LAN connection with the oscilloscope.")
@@ -70,7 +116,7 @@ script_name = os.path.basename(sys.argv[0])
 # Read/verify file type
 if len(sys.argv) <= 1:
     print("Warning - No command line parameters, using defaults")
-elif sys.argv[1].lower() not in ["png", "bmp", "csv"]:
+elif sys.argv[1].lower() not in ["png", "bmp"]:
     print_help()
     print("This file type is not supported: ", sys.argv[1])
     sys.exit("ERROR")
@@ -122,134 +168,39 @@ if (id_fields[company] != "RIGOL TECHNOLOGIES") or (id_fields[model] !="DS2202E"
 
 print("Instrument ID:", instrument_id)
 
-# Prepare filename as C:\MODEL_SERIAL_YYYY-MM-DD_HH.MM.SS
+# Prepare filename as MODEL_SERIAL_YYYY-MM-DD_HH.MM.SS
 timestamp = time.strftime("%Y-%m-%d_%H.%M.%S", time.localtime())
 filename = path_to_save + id_fields[model] + "_" + id_fields[serial] + "_" + timestamp
 
-if file_format in ["png", "bmp"]:
-    # Ask for an oscilloscope display print screen
-    print("Receiving screen capture...")
-    buff = command_bin(tn, ":DISP:DATA?")
 
-    expectedBuffLen = expected_buff_bytes(buff)
-    # Just in case the transfer did not complete in the expected time, read the remaining 'buff' chunks
-    while len(buff) < expectedBuffLen:
-        logging.warning("Received LESS data then expected! (" +
-                        str(len(buff)) + " out of " + str(expectedBuffLen) + " expected 'buff' bytes.)")
-        tmp = tn.read_until(b"\n", smallWait)
-        if len(tmp) == 0:
-            break
-        buff += tmp
-        logging.warning(str(len(tmp)) + " leftover bytes added to 'buff'.")
+# Ask for an oscilloscope display print screen
+print("Receiving screen capture...")
+buff = command_bin(tn, ":DISP:DATA?")
 
-    if len(buff) < expectedBuffLen:
-        logging.error("After reading all data chunks, 'buff' is still shorter then expected! (" +
-                      str(len(buff)) + " out of " + str(expectedBuffLen) + " expected 'buff' bytes.)")
-        sys.exit("ERROR")
+expectedBuffLen = expected_buff_bytes(buff)
+# Just in case the transfer did not complete in the expected time, read the remaining 'buff' chunks
+while len(buff) < expectedBuffLen:
+	logging.warning("Received LESS data then expected! (" +
+					str(len(buff)) + " out of " + str(expectedBuffLen) + " expected 'buff' bytes.)")
+	tmp = tn.read_until(b"\n", smallWait)
+	if len(tmp) == 0:
+		break
+	buff += tmp
+	logging.warning(str(len(tmp)) + " leftover bytes added to 'buff'.")
 
-    # Strip TMC Blockheader and keep only the data
-    tmcHeaderLen = tmc_header_bytes(buff)
-    expectedDataLen = expected_data_bytes(buff)
-    buff = buff[tmcHeaderLen: tmcHeaderLen+expectedDataLen]
+if len(buff) < expectedBuffLen:
+	logging.error("After reading all data chunks, 'buff' is still shorter then expected! (" +
+				  str(len(buff)) + " out of " + str(expectedBuffLen) + " expected 'buff' bytes.)")
+	sys.exit("ERROR")
 
-    # Save as PNG or BMP according to file_format
-    im = Image.open(io.BytesIO(buff))
-    im.save(filename + "." + file_format, file_format)
-    print("Saved file:", "'" + filename + "." + file_format + "'")
+# Strip TMC Blockheader and keep only the data
+tmcHeaderLen = tmc_header_bytes(buff)
+expectedDataLen = expected_data_bytes(buff)
+buff = buff[tmcHeaderLen: tmcHeaderLen+expectedDataLen]
 
-# TODO: Change WAV:FORM from ASC to BYTE
-elif file_format == "csv":
-    # Put the scope in STOP mode - for the moment, deal with it by manually stopping the scope
-    # TODO: Add command line switch and code logic for 1200 vs ALL memory data points
-    # tn.write("stop")
-    # response = tn.read_until(b"\n", 1)
-
-    # Scan for displayed channels
-    chanList = []
-    for channel in ["CHAN1", "CHAN2"]:
-        response = command(tn, ":" + channel + ":DISP?")
-
-        # If channel is active
-        if response == '1\n':
-            chanList += [channel]
-
-    # the meaning of 'max' is   - will read only the displayed data when the scope is in RUN mode,
-    #                             or when the MATH channel is selected
-    #                           - will read all the acquired data points when the scope is in STOP mode
-    # TODO: Change mode to MAX
-    # TODO: Add command line switch for MAX/NORM
-    command(tn, ":WAV:MODE NORM")
-    command(tn, ":WAV:STAR 0")
-    command(tn, ":WAV:MODE NORM")
-
-    csv_buff = ""
-
-    # for each active channel
-    for channel in chanList:
-        print()
-
-        # Set WAVE parameters
-        command(tn, ":WAV:SOUR " + channel)
-        command(tn, ":WAV:FORM ASC")
-
-        # MATH channel does not allow START and STOP to be set. They are always 0 and 1200
-        if channel != "MATH":
-            command(tn, ":WAV:STAR 1")
-            command(tn, ":WAV:STOP 1200")
-
-        buff = ""
-        print("Data from channel '" + str(channel) + "', points " + str(1) + "-" + str(1200) + ": Receiving...")
-        buffChunk = command(tn, ":WAV:DATA?")
-
-        # Just in case the transfer did not complete in the expected time
-        while buffChunk[-1] != "\n":
-            logging.warning("The data transfer did not complete in the expected time of " +
-                            str(smallWait) + " second(s).")
-
-            tmp = tn.read_until(b"\n", smallWait)
-            if len(tmp) == 0:
-                break
-            buffChunk += tmp
-            logging.warning(str(len(tmp)) + " leftover bytes added to 'buff_chunks'.")
-
-        # Append data chunks
-        # Strip TMC Blockheader and terminator bytes
-        buff += buffChunk[tmc_header_bytes(buffChunk):-1] + ","
-
-        # Strip the last \n char
-        buff = buff[:-1]
-
-        # Process data
-        buff_list = buff.split(",")
-        buff_rows = len(buff_list)
-
-        # Put read data into csv_buff
-        csv_buff_list = csv_buff.split(os.linesep)
-        csv_rows = len(csv_buff_list)
-
-        current_row = 0
-        if csv_buff == "":
-            csv_first_column = True
-            csv_buff = str(channel) + os.linesep
-        else:
-            csv_first_column = False
-            csv_buff = str(csv_buff_list[current_row]) + "," + str(channel) + os.linesep
-
-        for point in buff_list:
-            current_row += 1
-            if csv_first_column:
-                csv_buff += str(point) + os.linesep
-            else:
-                if current_row < csv_rows:
-                    csv_buff += str(csv_buff_list[current_row]) + "," + str(point) + os.linesep
-                else:
-                    csv_buff += "," + str(point) + os.linesep
-
-    # Save data as CSV
-    scr_file = open(filename + "." + file_format, "wb")
-    scr_file.write(csv_buff)
-    scr_file.close()
-
-    print("Saved file:", "'" + filename + "." + file_format + "'")
+# Save as PNG or BMP according to file_format
+im = Image.open(io.BytesIO(buff))
+im.save(filename + "." + file_format, file_format)
+print("Saved file:", "'" + filename + "." + file_format + "'")
 
 tn.close()
