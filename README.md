@@ -1,3 +1,5 @@
+# Project retired, replaced by [RigolConnect](https://github.com/zone11/RigolConnect)
+
 # DS2202E-ScreenCapture
 ```DS2202E-ScreenCapture.py``` is a Python script that captures whatever is displayed on the screen of a Rigol DS2202E series oscilloscope.
 
